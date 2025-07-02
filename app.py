@@ -7,6 +7,25 @@ from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
 import tempfile
 
+
+# ---------------------------------
+import re
+import unicodedata
+ 
+# Función para normalizar texto
+def normalizar(texto):
+    texto = texto.lower()
+    texto = unicodedata.normalize('NFD', texto)
+    texto = texto.encode('ascii', 'ignore').decode("utf-8")
+    texto = re.sub(r'\s+', ' ', texto)  # reemplazar múltiples espacios por uno
+    return texto
+ 
+# Buscar patrón en texto general
+def buscar_patron(texto, patron):
+    match = re.search(patron, texto, re.IGNORECASE)
+    return match.group(1).strip() if match else "No encontrado"
+#-------------------------------
+
 # Cargar modelos multilingües
 @st.cache_resource
 def cargar_modelos():
@@ -21,6 +40,7 @@ from transformers import MarianMTModel, MarianTokenizer
 
 st.set_page_config(page_title="Resumen de expedientes", layout="wide")
 st.title("🤖 Resumen de expedientes")
+st.header("Dir. Metodologías y Modelos de Riesgos")
 
 # Inicializar historial
 if "historial" not in st.session_state:
@@ -81,6 +101,38 @@ Pregunta:
 Respuesta:"""
         respuesta = qa_model(prompt, max_new_tokens=200, do_sample=True)[0]["generated_text"]
         return f"(Desde texto)\n{respuesta.split('Respuesta:')[-1].strip()}"
+
+    st.subheader("1) Metodología con Expresiones Regulares")
+    texto_normalizado = normalizar(all_text)
+    # Búsqueda en texto general
+    inicio_operaciones = buscar_patron(texto_normalizado, r"inicia(?:.*?en)?\s*operaciones.*?(\d{4})")
+    giro_comercial = buscar_patron(texto_normalizado, r"giro comercial\s*:?(.+?)(?:\.|\n)")
+    secretario = buscar_patron(texto_normalizado, r"secretario(?:a)?(?:\s*:?|\s+de\s+actas)?\s*([a-záéíóúñ\s]{5,50})")
+    tesorero = buscar_patron(texto_normalizado, r"tesorero(?:a)?\s*:? ([a-záéíóúñ\s]{5,50})")
+
+    st.markdown("""
+    - Expresiones utilizadas:         
+    -  `inicia(?:.*?en)?\s*operaciones.*?(\d{4})`
+    -  `giro comercial\s*:?(.+?)(?:\.|\n)`
+    -  `secretario(?:a)?(?:\s*:?|\s+de\s+actas)?\s*([a-záéíóúñ\s]{5,50})`
+    -  `tesorero(?:a)?\s*:? ([a-záéíóúñ\s]{5,50})`        
+    """)
+
+
+    st.write("Inicio de operaciones:", inicio_operaciones)
+    st.write("Giro comercial:", giro_comercial)
+    st.write("Secretario:", secretario)
+    st.write("Tesorero:", tesorero)
+
+
+    st.subheader("2) Metodología con Modelos de inteligencia artificial")
+
+    st.markdown("""
+    - Modelos utilizados:         
+      - `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`: Crea el espacio de embeddings para nuestro texto.
+      - `mistralai/Mistral-7B-Instruct-v0.1`. Modelo para realizar preguntas y obtener respuesta con base a nuestro texto.
+      - `google/tapas-large-finetuned-wtq`: Modelo para realizar preguntas en tablas y obtener respuesta. (Requiere preguntas en inglés). 
+    """)
 
     with st.form("form_pregunta"):
         pregunta = st.text_input("Escribe tu pregunta sobre el PDF:")
